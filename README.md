@@ -13,10 +13,23 @@ the model's residual stream during generation. For a replication of some of the
 paper's results (extracting and validating the vectors, and steering), see
 [foogunlana/emotion-concepts](https://github.com/foogunlana/emotion-concepts).
 
+## Install
+
+You need Python 3.12+ and [uv](https://docs.astral.sh/uv/getting-started/installation/)
+(`curl -LsSf https://astral.sh/uv/install.sh | sh`).
+
+```sh
+git clone https://github.com/foogunlana/emotion-steer.git
+cd emotion-steer
+uv sync
+```
+
+`uv sync` creates `.venv` and installs PyTorch, Transformers and FastAPI. The
+first run downloads the default model (about 1 GB) into `.cache/`.
+
 ## Run
 
 ```sh
-uv sync
 uv run uvicorn app.server:app --port 8765
 ```
 
