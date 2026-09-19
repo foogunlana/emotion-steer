@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mood Dial</title>
+<style>
+:root {
+  --bg: #f6f5f1; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6a64; --line: #e6e4dd;
+  --accent: #2a5bd7; --chip: #efede7; --user: #eef2fb; --danger: #c93c3c; --ok: #3aa55d;
+  --tint-alpha: 0.30;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151514; --card: #1e1e1c; --ink: #ecebe6; --muted: #9a998f; --line: #34332f;
+    --accent: #7ea2ff; --chip: #2a2a27; --user: #232a3a; --danger: #ff7b7b; --ok: #5cc27d;
+    --tint-alpha: 0.38;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
+header h1 { font-size: 17px; margin: 0; letter-spacing: .01em; }
+header .conn { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.dot.on { background: var(--ok); }
+main { display: grid; grid-template-columns: 360px 1fr; gap: 20px; padding: 20px; max-width: 1280px; margin: 0 auto;
+  height: calc(100vh - 50px); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+
+/* control panel */
+aside { overflow-y: auto; }
+.group { padding: 14px 16px 16px; border-bottom: 1px solid var(--line); }
+.group:last-child { border-bottom: 0; }
+.group h2 { display: flex; align-items: center; justify-content: space-between; margin: 0 0 10px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+select, input[type=text] { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 13.5px; }
+select:focus, input[type=text]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.model-row { display: flex; gap: 8px; }
+.model-row select { flex: 1; }
+#custom-model { margin-top: 8px; }
+.meta { margin-top: 8px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.choice { margin-top: 8px; font-size: 12.5px; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.choice.warn { color: var(--danger); }
+.confirm { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--chip); font-size: 12.5px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.confirm span { flex: 1 1 160px; }
+.btn.small { padding: 3px 10px; font-size: 12.5px; }
+.btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.linkbtn.danger { color: var(--danger); }
+.running { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--muted); }
+.running b { color: var(--ink); font-weight: 600; }
+.progress { margin-top: 10px; }
+.progress .track { height: 6px; border-radius: 3px; background: var(--chip); overflow: hidden; }
+.progress .bar { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width .3s; }
+.progress.indet .bar { width: 30%; animation: indet 1.2s ease-in-out infinite; }
+@keyframes indet { 0% { margin-left: -30%; } 100% { margin-left: 100%; } }
+.progress .ptext { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+.seg-ctl { display: inline-flex; background: var(--chip); padding: 2px; border-radius: 7px; text-transform: none; letter-spacing: 0; }
+.seg-ctl button { border: 0; background: transparent; color: var(--muted); padding: 3px 10px; border-radius: 5px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.seg-ctl button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px #0002; }
+
+/* wheel */
+.wheel { position: relative; width: 100%; max-width: 310px; aspect-ratio: 1; margin: -28px auto -26px; touch-action: none; user-select: none; }
+.disc { position: absolute; left: 19%; top: 19%; width: 62%; height: 62%; border-radius: 50%; }
+.disc::after { content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(circle closest-side, var(--card) 0%, color-mix(in srgb, var(--card) 60%, transparent) 35%, transparent 100%); }
+.wheel svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.wheel .ring { fill: none; stroke: var(--ink); stroke-opacity: .12; }
+.wheel .lbl { font-size: 11.5px; fill: var(--muted); cursor: pointer; }
+.wheel .lbl.hot { fill: var(--ink); font-weight: 600; }
+.wheel .handle { fill: var(--card); stroke: var(--ink); stroke-width: 2.5; cursor: grab; }
+.wheel .handle.custom { stroke-dasharray: 3 3; }
+.wheel .handle:focus { outline: none; stroke: var(--accent); stroke-width: 3.5; }
+.wheel .spoke { stroke: var(--ink); stroke-opacity: .35; stroke-width: 1.5; }
+.caption { color: var(--muted); font-size: 11.5px; text-align: center; position: relative; }
+.readout-row { display: flex; justify-content: center; align-items: baseline; gap: 10px; margin-top: 10px; min-height: 21px; }
+.readout { font-size: 13.5px; text-align: center; }
+.linkbtn { border: 0; background: none; color: var(--accent); font: inherit; font-size: 12.5px; cursor: pointer; padding: 0; }
+.linkbtn:hover { text-decoration: underline; }
+.readout b { font-weight: 600; }
+
+/* mixer */
+.mixer { display: grid; grid-template-columns: 84px 1fr 38px; gap: 4px 10px; align-items: center; font-size: 13px; }
+.mixer .name { display: flex; align-items: center; gap: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.mixer .val { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+.mixer-note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+/* settings grid */
+.settings { display: grid; grid-template-columns: 70px 1fr 58px; gap: 10px 10px; align-items: center; font-size: 13px; }
+.settings label { color: var(--muted); }
+.settings .v { text-align: right; font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+.actions { display: flex; gap: 8px; margin-top: 12px; }
+.btn { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13.5px; cursor: pointer; white-space: nowrap; }
+.btn:hover:not([disabled]) { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.stop { color: var(--danger); }
+.btn[disabled] { opacity: .45; cursor: default; }
+details.tips { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+details.tips summary { cursor: pointer; color: var(--ink); font-size: 13px; }
+details.tips ul { padding-left: 18px; margin: 8px 0; }
+
+/* transcript */
+section.chat { display: flex; flex-direction: column; min-height: 0; }
+#log { flex: 1; overflow-y: auto; padding: 22px 26px; }
+#log:empty::before { content: "Ask something, or start an endless story — then move the wheel while it writes."; color: var(--muted); }
+.msg { margin: 0 0 18px; max-width: 72ch; white-space: pre-wrap; }
+.msg.user { background: var(--user); padding: 8px 12px; border-radius: 10px; margin-left: auto; width: fit-content; max-width: 60ch; }
+.msg.bot, .msg.chapter { font-family: ui-serif, Georgia, "Times New Roman", serif; font-size: 16.5px; line-height: 1.65; }
+.chapter-h { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 26px 0 8px; }
+.sysnote { font-size: 12px; color: var(--muted); text-align: center; margin: 10px 0 18px; }
+.seg { border-radius: 3px; }
+.cursor::after { content: "▍"; color: var(--muted); animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.err { color: var(--danger); font-size: 13px; margin-bottom: 12px; }
+.composer { border-top: 1px solid var(--line); padding: 12px 16px 14px; }
+.examples { display: grid; grid-template-columns: 44px 1fr; gap: 6px 8px; align-items: center; margin-bottom: 10px; }
+.examples .k { font-size: 12px; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 0; background: var(--chip); color: var(--ink); border-radius: 999px; padding: 3px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.chip:hover { outline: 1px solid var(--muted); }
+.inputrow { display: flex; gap: 8px; align-items: stretch; }
+.inputrow .btn { height: 40px; }
+textarea { flex: 1; min-width: 0; resize: none; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px;
+  padding: 9px 10px; font: inherit; font-size: 14px; height: 40px; line-height: 20px; }
+textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+@media (max-width: 820px) {
+  main { grid-template-columns: 1fr; height: auto; padding: 12px 16px; }
+  section.chat { height: 80vh; }
+  .inputrow { flex-wrap: wrap; }
+  textarea { flex-basis: 100%; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mood Dial</h1>
+  <span class="conn"><span class="dot" id="dot"></span><span id="conn">connecting…</span></span>
+</header>
+<main>
+  <aside class="card">
+    <div class="group">
+      <h2>Model</h2>
+      <div class="model-row">
+        <select id="model-select" aria-label="Model"></select>
+        <button class="btn" id="load" disabled>Load</button>
+      </div>
+      <input type="text" id="custom-model" placeholder="Hugging Face id, e.g. Qwen/Qwen2.5-1.5B-Instruct" hidden>
+      <div class="choice" id="choice"><span id="choice-text"></span><button class="linkbtn danger" id="remove" hidden>Remove…</button></div>
+      <div class="confirm" id="confirm" hidden>
+        <span id="confirm-text"></span>
+        <button class="btn small danger" id="confirm-yes">Delete</button>
+        <button class="linkbtn" id="confirm-no">Cancel</button>
+      </div>
+      <div class="running" id="model-meta">—</div>
+      <div class="progress" id="progress" hidden>
+        <div class="track"><div class="bar"></div></div>
+        <div class="ptext"></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Emotion
+        <span class="seg-ctl" role="tablist">
+          <button class="on" data-tab="wheel">Wheel</button><button data-tab="mixer">Mixer</button>
+        </span>
+      </h2>
+      <div id="tab-wheel">
+        <div class="wheel" id="wheel">
+          <div class="disc" id="disc"></div>
+          <svg viewBox="-150 -150 300 300" id="wsvg" aria-label="Emotion wheel">
+            <g id="rings"></g>
+            <line class="spoke" id="spoke" x1="0" y1="0" x2="0" y2="0"></line>
+            <g id="labels"></g>
+            <circle class="handle" id="handle" r="9" cx="0" cy="0" tabindex="0"
+                    role="slider" aria-label="Steering point. Arrow keys move it, Escape returns to neutral."></circle>
+          </svg>
+        </div>
+        <div class="caption">← unpleasant · pleasant → &nbsp; ↑ intense · quiet ↓<br>further from the centre = stronger</div>
+      </div>
+      <div id="tab-mixer" hidden>
+        <div class="mixer" id="mixer"></div>
+        <div class="mixer-note">Negative values push <i>away</i> from an emotion.</div>
+      </div>
+      <div class="readout-row">
+        <span class="readout" id="readout">neutral</span>
+        <button class="linkbtn" id="centre" title="Return to the centre (Esc on the wheel)">reset</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Settings</h2>
+      <div class="settings">
+        <label for="rim" title="Steering at the edge of the wheel, or at a slider's end, as a fraction of a typical activation's size">Strength</label>
+        <input type="range" id="rim" min="0.1" max="1.2" step="0.05" value="0.5">
+        <span class="v" id="rimv">0.50</span>
+        <label for="speed" title="How fast text appears">Speed</label>
+        <input type="range" id="speed" min="0" max="8" step="1" value="4">
+        <span class="v" id="speedv">8 tok/s</span>
+      </div>
+    </div>
+
+    <div class="group">
+      <details class="tips">
+        <summary>Things to try</summary>
+        <ul>
+          <li>Start an endless story at the centre. Once chapter 1 is going, drag slowly out towards <b>afraid</b>, then round to <b>calm</b>.</li>
+          <li>Ask the same question at <b>joyful</b> and at <b>lonely</b>, then compare the answers.</li>
+          <li>Mixer: <b>desperate</b> +0.8 with <b>calm</b> −0.5, on a heist premise.</li>
+          <li>Push strength past ~0.8 to see where the model stops making sense.</li>
+          <li>Load a bigger model and replay the same premise. Do the emotions land differently?</li>
+        </ul>
+        Text is tinted with the steering that was active when each word was written.
+      </details>
+    </div>
+  </aside>
+
+  <section class="card chat">
+    <div id="log" aria-live="polite"></div>
+    <div class="composer">
+      <div class="examples">
+        <span class="k">Ask</span><div class="chips" id="askchips"></div>
+        <span class="k">Story</span><div class="chips" id="storychips"></div>
+      </div>
+      <div class="inputrow">
+        <textarea id="input" rows="1" placeholder="Ask something, or give a story premise"></textarea>
+        <button class="btn" id="send">Send</button>
+        <button class="btn primary" id="story">Endless story</button>
+        <button class="btn stop" id="stop" disabled>Stop</button>
+        <button class="btn" id="clear" title="Clear the conversation">Clear</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+// Circumplex placement: angle in degrees, counter-clockwise from "pleasant" (east);
+// north is high arousal. Loosely after Russell (1980) and the Geneva Emotion Wheel.
+const EMO = {
+  proud:     { a: 15,  c: "#5aa832" },
+  joyful:    { a: 40,  c: "#e3b21c" },
+  excited:   { a: 65,  c: "#f08a24" },
+  surprised: { a: 95,  c: "#e0609a" },
+  afraid:    { a: 120, c: "#8b5cf6" },
+  angry:     { a: 142, c: "#e03e3e" },
+  desperate: { a: 165, c: "#b02e5e" },
+  disgusted: { a: 190, c: "#8a9a2a" },
+  ashamed:   { a: 215, c: "#a8674a" },
+  sad:       { a: 240, c: "#3b7dd8" },
+  lonely:    { a: 265, c: "#5f6fa3" },
+  calm:      { a: 320, c: "#27b3a2" },
+};
+const NAMES = Object.keys(EMO);
+const R = 93;           // disc radius in svg units
+const KAPPA = 10;       // how sharply the wheel favours the nearest emotion
+const SPEEDS = [1, 2, 4, 6, 8, 12, 16, 24, 0];  // tokens/s; 0 = as fast as the model goes
+// [chip label, full prompt]
+const ASK = [
+  ["Forest at night", "Describe a walk through a forest at night."],
+  ["Poem about the sea", "Write a short poem about the sea."],
+  ["Weekend plans", "What should I do this weekend?"],
+  ["Birthday party", "Describe a birthday party in a small flat."],
+  ["Cancelled flight", "My flight just got cancelled. What now?"],
+  ["The moon", "Tell me about the moon."],
+];
+const PREMISES = [
+  ["Lighthouse letter", "A lighthouse keeper finds a letter washed ashore, addressed to her."],
+  ["Mother's house", "Two siblings return to clear out their late mother's house."],
+  ["Robot in a mall", "A robot wakes up alone in an abandoned shopping mall."],
+  ["Exam-night blackout", "The night before a big exam, the power goes out across the city."],
+  ["Locked box", "A fisherman pulls up a locked wooden box in his net."],
+  ["Midnight bells", "A girl moves to a village where nobody will say why the bells ring at midnight."],
+];
+
+const $ = (id) => document.getElementById(id);
+const rad = (d) => d * Math.PI / 180;
+const state = { mode: "wheel", r: 0, theta: 0, mix: Object.fromEntries(NAMES.map(n => [n, 0])), rim: 0.5 };
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+
+// ---------- colour helpers ----------
+const hex2rgb = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const mixRgb = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+const rgbStr = (c, alpha = 1) => `rgba(${c[0]},${c[1]},${c[2]},${alpha})`;
+
+function paintDisc() {
+  // css conic angles run clockwise from north
+  const stops = NAMES.map(n => ({ deg: ((90 - EMO[n].a) % 360 + 360) % 360, rgb: hex2rgb(EMO[n].c) }))
+    .sort((x, y) => x.deg - y.deg);
+  const first = stops[0], last = stops[stops.length - 1];
+  const t = (360 - last.deg) / (first.deg + 360 - last.deg);
+  const seam = mixRgb(last.rgb, first.rgb, t);
+  const parts = [`${rgbStr(seam)} 0deg`, ...stops.map(s => `${rgbStr(s.rgb)} ${s.deg}deg`), `${rgbStr(seam)} 360deg`];
+  $("disc").style.background = `conic-gradient(${parts.join(",")})`;
+}
+
+// ---------- wheel geometry ----------
+function wheelWeights(theta) {
+  const w = NAMES.map(n => Math.exp(KAPPA * (Math.cos(rad(theta - EMO[n].a)) - 1)));
+  const s = w.reduce((a, b) => a + b, 0);
+  return Object.fromEntries(NAMES.map((n, i) => [n, w[i] / s]));
+}
+
+function alphas() {
+  if (state.mode === "wheel") {
+    const w = wheelWeights(state.theta);
+    return Object.fromEntries(NAMES.map(n => [n, state.r * state.rim * w[n]]));
+  }
+  return Object.fromEntries(NAMES.map(n => [n, state.mix[n] * state.rim]));
+}
+
+function buildWheel() {
+  paintDisc();
+  const svgNS = "http://www.w3.org/2000/svg";
+  for (const f of [0.25, 0.5, 0.75, 1]) {
+    const c = document.createElementNS(svgNS, "circle");
+    c.setAttribute("r", R * f); c.setAttribute("class", "ring");
+    $("rings").appendChild(c);
+  }
+  for (const n of NAMES) {
+    const a = rad(EMO[n].a), x = Math.cos(a) * (R + 12), y = -Math.sin(a) * (R + 12);
+    const t = document.createElementNS(svgNS, "text");
+    t.textContent = n;
+    t.setAttribute("x", x); t.setAttribute("y", y + 4);
+    t.setAttribute("text-anchor", Math.abs(x) < 20 ? "middle" : x > 0 ? "start" : "end");
+    t.setAttribute("class", "lbl"); t.dataset.name = n;
+    t.addEventListener("click", () => setWheel(0.8, EMO[n].a));
+    $("labels").appendChild(t);
+  }
+  const svg = $("wsvg");
+  const toPolar = (ev) => {
+    const box = svg.getBoundingClientRect();
+    const x = (ev.clientX - box.left) / box.width * 300 - 150;
+    const y = (ev.clientY - box.top) / box.height * 300 - 150;
+    return [Math.min(1, Math.hypot(x, y) / R), (Math.atan2(-y, x) * 180 / Math.PI + 360) % 360, Math.hypot(x, y)];
+  };
+  let dragging = false;
+  svg.addEventListener("pointerdown", (ev) => {
+    if (ev.target.classList.contains("lbl")) return;
+    const [r, th, d] = toPolar(ev);
+    if (d > R + 8 && ev.target.id !== "handle") return; // clicks outside the disc don't move the point
+    dragging = true; svg.setPointerCapture(ev.pointerId); setWheel(r, th); $("handle").focus();
+  });
+  svg.addEventListener("pointermove", (ev) => { if (dragging) { const [r, th] = toPolar(ev); setWheel(r, th); } });
+  svg.addEventListener("pointerup", () => dragging = false);
+  $("handle").addEventListener("keydown", (ev) => {
+    const step = 0.05;
+    let x = state.r * Math.cos(rad(state.theta)), y = state.r * Math.sin(rad(state.theta));
+    if (ev.key === "ArrowLeft") x -= step; else if (ev.key === "ArrowRight") x += step;
+    else if (ev.key === "ArrowUp") y += step; else if (ev.key === "ArrowDown") y -= step;
+    else if (ev.key === "Escape" || ev.key === "0") { setWheel(0, state.theta); ev.preventDefault(); return; }
+    else return;
+    ev.preventDefault();
+    setWheel(Math.min(1, Math.hypot(x, y)), (Math.atan2(y, x) * 180 / Math.PI + 360) % 360);
+  });
+}
+
+function setWheel(r, theta) {
+  state.mode = "wheel"; state.r = r; state.theta = theta;
+  const w = wheelWeights(theta);
+  for (const n of NAMES) state.mix[n] = r * w[n];
+  render(); pushSteer();
+}
+
+// ---------- mixer ----------
+function buildMixer() {
+  for (const n of NAMES) {
+    $("mixer").insertAdjacentHTML("beforeend",
+      `<label class="name" for="mx-${n}"><span class="sw" style="background:${EMO[n].c}"></span>${n}</label>
+       <input type="range" id="mx-${n}" min="-1" max="1" step="0.05" value="0">
+       <span class="val" id="mxv-${n}">0</span>`);
+    $(`mx-${n}`).addEventListener("input", (ev) => {
+      state.mode = "mixer"; state.mix[n] = +ev.target.value;
+      render(); pushSteer();
+    });
+  }
+}
+
+// ---------- render controls ----------
+function render() {
+  const a = alphas();
+  // handle position: wheel point, or the resultant of the mix in mixer mode
+  let r = state.r, th = state.theta;
+  if (state.mode === "mixer") {
+    let x = 0, y = 0, tot = 0;
+    for (const n of NAMES) { const v = state.mix[n]; x += v * Math.cos(rad(EMO[n].a)); y += v * Math.sin(rad(EMO[n].a)); tot += Math.abs(v); }
+    r = Math.min(1, tot); th = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+  const hx = r * R * Math.cos(rad(th)), hy = -r * R * Math.sin(rad(th));
+  const h = $("handle");
+  h.setAttribute("cx", hx); h.setAttribute("cy", hy);
+  h.classList.toggle("custom", state.mode === "mixer");
+  h.setAttribute("aria-valuetext", describe(a));
+  $("spoke").setAttribute("x2", hx); $("spoke").setAttribute("y2", hy);
+
+  for (const n of NAMES) {
+    $(`mx-${n}`).value = state.mix[n];
+    $(`mxv-${n}`).textContent = a[n].toFixed(2);
+  }
+  const top = topEmotion(a);
+  document.querySelectorAll(".lbl").forEach(t => t.classList.toggle("hot", t.dataset.name === top));
+  $("readout").innerHTML = describe(a, true);
+}
+
+function topEmotion(a) {
+  let best = null, bv = 0.01;
+  for (const n of NAMES) if (Math.abs(a[n]) > bv) { bv = Math.abs(a[n]); best = n; }
+  return best;
+}
+
+function describe(a, html = false) {
+  const total = NAMES.reduce((s, n) => s + Math.abs(a[n]), 0);
+  if (total < 0.005) return "neutral";
+  const parts = NAMES.filter(n => Math.abs(a[n]) / total > 0.12)
+    .sort((x, y) => Math.abs(a[y]) - Math.abs(a[x]))
+    .map(n => {
+      const pct = Math.round(Math.abs(a[n]) / total * 100);
+      const nm = (a[n] < 0 ? "not " : "") + n;
+      return html ? `<b style="color:${EMO[n].c}">${nm}</b> ${pct}%` : `${nm} ${pct}%`;
+    });
+  return `${parts.join(" · ")} — strength ${total.toFixed(2)}`;
+}
+
+// tint for new text: colour-weighted blend of the positive pushes
+function currentTint() {
+  const a = alphas();
+  let tot = 0, rgb = [0, 0, 0];
+  for (const n of NAMES) if (a[n] > 0) { const c = hex2rgb(EMO[n].c); tot += a[n]; rgb = rgb.map((v, i) => v + c[i] * a[n]); }
+  const size = NAMES.reduce((s, n) => s + Math.abs(a[n]), 0);
+  if (size < 0.005) return null;
+  const col = tot > 0 ? rgb.map(v => Math.round(v / tot)) : [128, 128, 128];
+  const strength = Math.min(1, size / 0.8);
+  return { key: col.join(",") + "|" + strength.toFixed(2), col, strength };
+}
+
+// ---------- settings ----------
+function setRim(v) { state.rim = v; $("rim").value = v; $("rimv").textContent = v.toFixed(2); store.set("rim", v); }
+function setSpeed(i) {
+  $("speed").value = i;
+  const tps = SPEEDS[i];
+  $("speedv").textContent = tps ? `${tps} tok/s` : "max";
+  store.set("speed", i);
+  send({ type: "speed", tps });
+}
+
+// ---------- model ----------
+// Nothing downloads or loads until Load is pressed; the line under the picker
+// says beforehand what pressing it will do.
+let current = null, loadingModel = null, local = [], statusReq = 0;
+const OTHER = "__other__";
+const short = (name) => name.split("/").pop();
+const fmtParams = (n) => n >= 1e9 ? `${(n / 1e9).toFixed(1)}B` : `${Math.round(n / 1e6)}M`;
+const fmtBytes = (b) => b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`;
+const localInfo = (name) => local.find(m => m.name === name);
+
+function fillModels(m) {
+  local = m.local;
+  const sel = $("model-select"), keep = sel.value;
+  const names = local.map(x => x.name);
+  const remote = m.suggested.filter(x => !names.includes(x));
+  const opt = (v) => `<option value="${v}">${short(v)}${v === current ? " (running)" : ""}</option>`;
+  sel.innerHTML =
+    `<optgroup label="On this computer">${names.map(opt).join("")}</optgroup>` +
+    (remote.length ? `<optgroup label="Not downloaded">${remote.map(opt).join("")}</optgroup>` : "") +
+    `<option value="${OTHER}">Other Hugging Face model…</option>`;
+  sel.value = [...sel.options].some(o => o.value === keep) && keep !== current ? keep : m.model;
+  $("custom-model").hidden = sel.value !== OTHER;
+  describeChoice();
+}
+function chosenModel() {
+  const v = $("model-select").value;
+  return v === OTHER ? $("custom-model").value.trim() : v;
+}
+function setChoice(text, { load = "Load", canLoad = true, removable = false, warn = false } = {}) {
+  $("choice-text").textContent = text;
+  $("choice").hidden = !text && removable === false;
+  $("choice").classList.toggle("warn", warn);
+  $("load").textContent = load;
+  $("load").disabled = !!loadingModel || !canLoad;
+  $("remove").hidden = !removable || !!loadingModel;
+  $("confirm").hidden = true;
+}
+async function describeChoice() {
+  const name = chosenModel(), req = ++statusReq;
+  if (!name) return setChoice("Type a model id, e.g. Qwen/Qwen2.5-1.5B-Instruct", { canLoad: false });
+  if (name === current) return setChoice("", { canLoad: false });  // the "Running …" line already says it
+  const li = localInfo(name);
+  if (li && li.weights > 1e6) {
+    return setChoice(`On disk · ${fmtBytes(li.weights)} · ${li.vectors ? "vectors ready" : "vectors will be extracted"}`,
+                     { removable: true });
+  }
+  setChoice("Checking size…", { canLoad: false, removable: !!li });
+  try {
+    const r = await (await fetch(`/api/model?name=${encodeURIComponent(name)}`)).json();
+    if (req !== statusReq) return;  // the selection changed while we waited
+    if (r.error) return setChoice(`Hub: ${r.error}`, { warn: true, load: "Try loading", removable: !!li });
+    setChoice(`Not downloaded · ${r.download ? fmtBytes(r.download) + " download" : "size unknown"}, then vectors are extracted`,
+              { load: "Download & load", removable: !!li });
+  } catch {
+    if (req === statusReq) setChoice("Couldn't check the Hub", { warn: true, load: "Try loading" });
+  }
+}
+function askRemove() {
+  const name = chosenModel(), li = localInfo(name);
+  const parts = [li.weights > 1e6 && `${fmtBytes(li.weights)} of weights`, li.vectors && "its emotion vectors"].filter(Boolean);
+  $("confirm-text").textContent = `Delete ${parts.join(" and ")} for ${short(name)}?`;
+  $("confirm").hidden = false; $("remove").hidden = true;
+}
+function showProgress(m) {
+  const p = $("progress");
+  p.hidden = false;
+  p.classList.toggle("indet", m.progress == null);
+  p.querySelector(".bar").style.width = m.progress == null ? "" : `${Math.round(m.progress * 100)}%`;
+  const pct = m.progress == null ? "" : ` ${Math.round(m.progress * 100)}%`;
+  p.querySelector(".ptext").textContent = `${short(m.model)}: ${m.stage}${pct}`;
+}
+
+// ---------- socket ----------
+let ws, sendPending = false;
+function connect() {
+  ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
+  ws.onopen = () => { $("dot").classList.add("on"); $("conn").textContent = "connected"; pushSteer(); setSpeed(+$("speed").value); };
+  ws.onclose = () => { $("dot").classList.remove("on"); $("conn").textContent = "disconnected, retrying…"; setBusy(false); setTimeout(connect, 1500); };
+  ws.onmessage = (ev) => handle(JSON.parse(ev.data));
+}
+function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+function pushSteer() {
+  if (sendPending) return;
+  sendPending = true;
+  requestAnimationFrame(() => { sendPending = false; send({ type: "steer", alphas: alphas() }); });
+}
+
+// ---------- transcript ----------
+const log = $("log");
+let cur = null, seg = null, segKey = null;
+const nearBottom = () => log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+
+function addLine(cls, text) {
+  const d = document.createElement("div"); d.className = cls; d.textContent = text; log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+}
+function startReply(mode, chapter) {
+  const stick = nearBottom();
+  if (mode === "story") addLine("chapter-h", `Chapter ${chapter}`);
+  cur = document.createElement("div"); cur.className = `msg ${mode === "story" ? "chapter" : "bot"} cursor`;
+  log.appendChild(cur); seg = null; segKey = undefined;
+  if (stick) log.scrollTop = log.scrollHeight;
+}
+function addToken(text) {
+  if (!cur) startReply("chat");
+  const stick = nearBottom();
+  const tint = currentTint(), key = tint ? tint.key : "none";
+  if (!seg || key !== segKey) {
+    seg = document.createElement("span"); seg.className = "seg"; segKey = key;
+    if (tint) {
+      const alpha = +getComputedStyle(document.documentElement).getPropertyValue("--tint-alpha");
+      seg.style.backgroundColor = rgbStr(tint.col, alpha * tint.strength);
+    }
+    cur.appendChild(seg);
+  }
+  seg.textContent += text;
+  if (stick) log.scrollTop = log.scrollHeight;
+}
+function endReply() { if (cur) cur.classList.remove("cursor"); cur = null; }
+
+function handle(m) {
+  if (m.type === "info") {
+    const switched = current && current !== m.model;
+    current = m.model; loadingModel = null;
+    $("progress").hidden = true;
+    fillModels(m);
+    $("model-meta").innerHTML = `Running <b>${short(m.model)}</b> · ${fmtParams(m.params)} params · layer ${m.layer}/${m.n_layers} · ${m.device}`;
+    if (switched) addLine("sysnote", `Switched to ${short(m.model)}`);
+  } else if (m.type === "loading") {
+    loadingModel = m.model; showProgress(m); $("load").disabled = true; $("remove").hidden = true;
+  } else if (m.type === "start") { setBusy(true); startReply(m.mode, m.chapter); }
+  else if (m.type === "token") addToken(m.text);
+  else if (m.type === "end") endReply();
+  else if (m.type === "idle") { endReply(); setBusy(false); }
+  else if (m.type === "error") addLine("err", m.message);
+}
+
+function setBusy(b) { $("stop").disabled = !b; }
+
+function ask(text) {
+  text = text.trim(); if (!text) return;
+  addLine("msg user", text); send({ type: "chat", text }); $("input").value = "";
+}
+function story(premise) {
+  premise = premise.trim();
+  addLine("msg user", `Endless story${premise ? ": " + premise : ""}`);
+  send({ type: "story", premise }); $("input").value = "";
+}
+
+// ---------- wire up ----------
+buildWheel(); buildMixer();
+setRim(+(store.get("rim") ?? 0.5));
+$("speed").value = +(store.get("speed") ?? 4);
+render();
+for (const [label, full] of ASK) $("askchips").insertAdjacentHTML("beforeend", `<button class="chip" title="${full}">${label}</button>`);
+for (const [label, full] of PREMISES) $("storychips").insertAdjacentHTML("beforeend", `<button class="chip" title="${full}">${label}</button>`);
+$("askchips").querySelectorAll(".chip").forEach((b, i) => b.onclick = () => ask(ASK[i][1]));
+$("storychips").querySelectorAll(".chip").forEach((b, i) => b.onclick = () => story(PREMISES[i][1]));
+$("send").onclick = () => ask($("input").value);
+$("story").onclick = () => story($("input").value);
+$("stop").onclick = () => send({ type: "stop" });
+$("clear").onclick = () => { send({ type: "reset" }); log.innerHTML = ""; cur = null; };
+$("input").addEventListener("keydown", (ev) => { if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); ask($("input").value); } });
+$("rim").addEventListener("input", (ev) => { setRim(+ev.target.value); render(); pushSteer(); });
+$("speed").addEventListener("input", (ev) => setSpeed(+ev.target.value));
+$("centre").onclick = () => { for (const n of NAMES) state.mix[n] = 0; setWheel(0, state.theta); };
+$("model-select").addEventListener("change", () => {
+  $("custom-model").hidden = $("model-select").value !== OTHER;
+  if (!$("custom-model").hidden) $("custom-model").focus();
+  describeChoice();
+});
+let typing;
+$("custom-model").addEventListener("input", () => { clearTimeout(typing); typing = setTimeout(describeChoice, 400); });
+$("custom-model").addEventListener("keydown", (ev) => { if (ev.key === "Enter" && !$("load").disabled) $("load").click(); });
+$("load").onclick = () => {
+  const name = chosenModel();
+  loadingModel = name; $("load").disabled = true; $("remove").hidden = true;
+  showProgress({ model: name, stage: "starting", progress: null });
+  send({ type: "load_model", model: name });
+};
+$("remove").onclick = askRemove;
+$("confirm-no").onclick = () => { $("confirm").hidden = true; $("remove").hidden = false; };
+$("confirm-yes").onclick = () => { send({ type: "remove_model", model: chosenModel() }); $("confirm").hidden = true; };
+document.querySelectorAll(".seg-ctl button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".seg-ctl button").forEach(x => x.classList.toggle("on", x === b));
+  $("tab-wheel").hidden = b.dataset.tab !== "wheel"; $("tab-mixer").hidden = b.dataset.tab !== "mixer";
+});
+connect();
+</script>
+</body>
+</html>

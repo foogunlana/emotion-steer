@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.cache/
+.DS_Store
+# vectors extracted locally for other models are a cache; only the default ships
+data/vectors/*
+!data/vectors/qwen--qwen2.5-0.5b-instruct.pt
